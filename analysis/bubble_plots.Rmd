@@ -1,0 +1,187 @@
+---
+title: "Bots and Agenda-setting"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+###Preparations
+
+Libraries \ read in libraries
+
+```{r,warning=FALSE,message=FALSE}
+util_libraries <- c("foreign", "reshape2", "stargazer", "arm", "plyr", "tidyverse", "stringr", "qdapRegex", "GGally", "progress", "pracma", "lubridate", "DescTools", "descr", "irr", "psych", 'gtools', "Hmisc", "colorspace")
+vis_libraries  <- c("ggplot2", "ggrepel", "grid", "gridExtra", "RColorBrewer", "scales", "corrplot", "ggeffects", "cowplot", "plot.matrix", "corrgram", "ggnetwork", "vioplot", "dotwhisker", "sjPlot", "sjlabelled", "sjmisc", "plot3D", "ggpubr", "ggExtra", "ggraph")
+stat_libraries <- c("network", "sna", "igraph", "moments", "nortest", "MASS", "randomForest", "sandwich", "lmtest", "gmodels", "margins", "sampleSelection", "pROC", "pscl",  "pwr", "relaimpo", "lme4", "plm", "caret", "ResourceSelection", "rvest", "cluster", "factoextra", "outliers", "acss", 'asbio','akima', 'plotly', 'factoextra', 'interactions', 'robustbase', "sandwich", "modelr", "broom", "mgcv", "stringdist", "sem", "lavaan", "corrr", "pglm")
+
+#install.packages(util_libraries)
+#install.packages(vis_libraries)
+#install.packages(stat_libraries)
+
+#vctrs problem:
+#find the library on Mac: 
+#/Library/Frameworks/R.framework/Resources/library
+#delete vctrs
+#install.packages("vctrs")
+
+install.packages("descr")
+for (l in 1:length(util_libraries)){ library(util_libraries[l], character.only = TRUE)}
+for (l in 1:length(vis_libraries)){ library(vis_libraries[l], character.only = TRUE)}
+for (l in 1:length(stat_libraries)){ library(stat_libraries[l], character.only = TRUE)}
+
+
+#install.packages('statebins')
+#devtools::install_github("hrbrmstr/statebins")
+library('statebins')
+
+
+#install.packages('ggh4x')
+library('ggh4x')
+
+#devtools::install_github("teunbrand/elementalist")
+library(elementalist) # 
+
+#install.packages('tidygraph')
+library(tidygraph)
+
+#install.packages('ggforce')
+library(ggforce)
+
+```
+
+Graph theme set
+
+```{r}
+theme_set(theme_bw())
+
+dropLeadingZero <- function(l){
+  str_replace(l, '0(?=.)', '')
+}
+```
+
+
+Avoid scientific notation
+```{r}
+options(scipen=999)
+```
+
+
+Clear the workspace
+
+```{r}
+rm(list=ls())
+```
+
+
+
+```{r}
+df
+```
+
+###Data prep
+
+```{r}
+
+n_human <-  56966
+n_bot <- 53295
+
+
+#network data ROW RETWEETS COL
+#human, bot
+#  h  b
+#h hh hb
+#b bh bb
+net <- rbind(
+  c(22949, 25582),
+  c(15391, 34435)
+)
+
+#labels for nodes
+node_labels <- c(
+  "Human", 
+  "Bot"
+  )
+
+colnames(net) <- node_labels
+rownames(net) <- node_labels
+
+
+#igraph object
+i_net <-as.directed(graph_from_adjacency_matrix(net, mode="directed",weighted=TRUE, diag=FALSE))
+i_net <-as.directed(graph_from_adjacency_matrix(net, mode="directed",weighted=TRUE, diag=FALSE))
+
+
+ct <- descr::CrossTable(as.matrix(net), chisq = T, exp=T, asresid=T, format = "SPSS")
+
+
+net_pct <- ct$prop.tbl
+#ct$CST$stdres
+net_pct
+```
+
+
+###Bubble plot w 2 nodes
+```{r, fig.width = 4, fig.height = 1.66}
+
+ls <- 5
+ns <- 45
+
+bubble_plot <- ggplot()+
+  
+  #Human RT human
+  geom_bspline(aes(x=c(.25,0,0,.25), y=c(0,-1,1,0)), linewidth=100*net_pct[1,1]/ls, color="lightpink2")+
+  geom_text(aes(x=0, y=0), label=paste(round(100*net_pct[1,1], digits = 0),"%", sep=""), color="black", size=3, hjust=0)+
+  
+  #Bot RT bot
+  geom_bspline(aes(x=c(.75,1,1,.75), y=c(0,-1,1,0)), linewidth=100*net_pct[2,2]/ls, color="skyblue2")+
+  geom_text(aes(x=1, y=0), label=paste(round(100*net_pct[2,2], digits = 0),"%", sep=""), color="black", size=3, hjust=1)+
+  
+  #Human RT bot
+  geom_bspline(aes(x=c(.25,.5,.75), y=c(0,1,0)), linewidth=100*net_pct[1,2]/ls, color="plum3")+
+  #geom_segment(aes(x=.65, xend=.67, y=.31, yend=.26), arrow = arrow(length = unit(2*net_atyp[1,2]/ls, "mm"),type = "closed"),linewidth=net_atyp[1,2]/ls, color="plum4") +
+  geom_segment(aes(x=.43, xend=.39, y=.45, yend=.42), arrow = arrow(length = unit(100*net_pct[1,2]/ls, "mm"),type = "closed"),linewidth=100*net_pct[1,2]/ls, color="plum3", linejoin ='mitre') +
+  geom_text(aes(x=.5, y=.7), label=paste(round(100*net_pct[1,2], digits = 0),"%", sep=""), color="black", size=3, hjust=.5)+
+  
+  #Bot RT human
+  geom_bspline(aes(x=c(.25,.5,.75), y=c(0,-1,0)), linewidth=100*net_pct[2,1]/ls, color="plum3")+
+  #geom_segment(aes(x=.38, xend=.35, y=-.37, yend=-.32), arrow = arrow(length = unit(2*net_atyp[2,1]/ls, "mm"),type = "closed"),linewidth=net_atyp[2,1]/ls, color="plum4") +
+  geom_segment(aes(x=.64, xend=.65, y=-.335, yend=-.31), arrow = arrow(length = unit(100*net_pct[2,1]/ls, "mm"),type = "closed"),linewidth=100*net_pct[2,1]/ls, color="plum3", linejoin ='mitre') +
+  geom_text(aes(x=.5, y=-.65), label=paste(round(100*net_pct[2,1], digits = 0),"%", sep=""), color="black", size=3, hjust=.5)+
+  
+  #Human bubble
+  geom_point(aes(x=.30, y=0), size=((n_human/(n_human+n_bot)))^.5*ns, color="red")+
+  geom_text(aes(x=.30, y=0), label=paste("Human\n", 100*round(n_human/(n_human+n_bot), digits = 2),"%", sep=""), color="white", size=4, lineheight=1)+
+  
+  #Bot bubble
+  geom_point(aes(x=.75, y=0), size=((n_bot/(n_human+n_bot)))^.5*ns, color="blue")+
+  geom_text(aes(x=.75, y=0), label=paste("Bot\n", 100*round(n_bot/(n_human+n_bot), digits = 2),"%", sep=""), color="white", size=4, lineheight=1)+
+  
+  #coord_fixed(ratio = .33, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on") +
+  
+  
+  
+  scale_x_continuous(limits=c(0,1), expand = c(0,0)) +
+  scale_y_continuous(limits=c(-1,1), expand = c(0,0)) +
+  
+  theme(
+    #aspect.ratio = .6,
+    plot.margin=ggplot2::margin(-5,2,-20,0, "pt"),
+    axis.line = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+    )
+
+
+bubble_plot
+
+```
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("../svg/Figure1.pdf", bubble_plot, width = 4, height = 1.66)
+```
+

@@ -1,0 +1,4955 @@
+---
+title: "Bots and Agenda-setting"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+###Preparations
+
+Libraries \ read in libraries
+
+```{r,warning=FALSE,message=FALSE}
+util_libraries <- c("foreign", "reshape2", "stargazer", "arm", "plyr", "tidyverse", "stringr", "qdapRegex", "GGally", "progress", "pracma", "lubridate", "DescTools", "irr", "psych", 'gtools', "Hmisc", "colorspace")
+vis_libraries  <- c("ggplot2", "ggrepel", "grid", "gridExtra", "RColorBrewer", "scales", "corrplot", "ggeffects", "cowplot", "plot.matrix", "corrgram", "ggnetwork", "vioplot", "dotwhisker", "sjPlot", "sjlabelled", "sjmisc", "plot3D", "ggpubr", "ggExtra", "ggraph")
+stat_libraries <- c("network", "sna", "igraph", "moments", "nortest", "MASS", "randomForest", "sandwich", "lmtest", "gmodels", "margins", "sampleSelection", "pROC", "pscl",  "pwr", "relaimpo", "lme4", "plm", "caret", "ResourceSelection", "rvest", "cluster", "factoextra", "outliers", "acss", 'asbio','akima', 'plotly', 'factoextra', 'interactions', 'robustbase', "sandwich", "modelr", "broom", "mgcv", "stringdist", "sem", "lavaan", "corrr", "pglm")
+
+#install.packages(util_libraries)
+#install.packages(vis_libraries)
+#install.packages(stat_libraries)
+
+#vctrs problem:
+#find the library on Mac: 
+#/Library/Frameworks/R.framework/Resources/library
+#delete vctrs
+#install.packages("vctrs")
+
+
+for (l in 1:length(util_libraries)){ library(util_libraries[l], character.only = TRUE)}
+for (l in 1:length(vis_libraries)){ library(vis_libraries[l], character.only = TRUE)}
+for (l in 1:length(stat_libraries)){ library(stat_libraries[l], character.only = TRUE)}
+
+
+#install.packages('statebins')
+#devtools::install_github("hrbrmstr/statebins")
+library('statebins')
+
+
+#install.packages('ggh4x')
+library('ggh4x')
+
+#devtools::install_github("teunbrand/elementalist")
+library(elementalist) # 
+```
+
+Graph theme set
+
+```{r}
+theme_set(theme_bw())
+
+dropLeadingZero <- function(l){
+  str_replace(l, '0(?=.)', '')
+}
+```
+
+
+Avoid scientific notation
+```{r}
+options(scipen=999)
+```
+
+
+Clear the workspace
+
+```{r}
+rm(list=ls())
+```
+
+###Read data
+```{r}
+# Set working directory to the location of the data files
+setwd("../data/regression data/")
+
+# Read the main data file
+bot_data <- read.csv("BOTOMETER_table_for_reg_with_ctrls_0.5.csv")
+
+# Read additional data files
+full_bot_desc <- read.csv("bot_data_0202_fixed.csv")
+bot_days_data <- read_csv("bot_daily_data_to_model.csv")
+bot_days_data2 <- read_csv("bot_days_data_02_23_2024.csv")
+bot_days_data_opinion <- read.csv("bot_days_data_with_opinion_filled_0308.csv")
+```
+
+
+```{r}
+dim(bot_days_data_opinion)
+```
+
+
+###2-way with varying days
+
+Simple before-after
+
+```{r}
+df=bot_days_data
+
+s_2way <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+       senti_mean_t2+
+      #cascade+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+s_2way_ctr <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      astroturf:bot_interaction+
+      astroturf:after+
+      astroturf:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+s_2way_ctr2 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+a_2way <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+a_2way_ctr <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      astroturf:bot_interaction+
+      astroturf:after+
+      astroturf:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+
+a_2way_ctr2 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+
+# a_2way_ctr <-  lm(
+#     log10(senti_size+1) ~
+#       
+#       bot_interaction +
+#       after +
+#       bot_interaction:after+
+#       
+#       #bot_prob_high+
+#       #interaction_senti+
+#       log10(senti_size_t2+1)+
+#       senti_mean_t2+
+#       #cascade+
+#       burstiness+
+#       #pos_num+
+#       #BOTOMETER_bot_prob_user+
+#       #BOTOMETER_bot_prob_bot+
+#       as.factor(topic)
+#     ,
+#     #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+#     data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,]
+#   )
+
+
+  
+  stargazer(s_2way, s_2way_ctr,a_2way, a_2way_ctr,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c("Senti", "Amount"),
+          order = c("^bot_interaction$",
+                    "^after$",
+                    "^bot_interaction:after$",
+                    "^Constant$"),
+          report=("vc*p"),
+          column.labels = c("no controls", "w controls", "no controls", "w controls"),
+          #add.lines=list(c("FE for ID","No", "Yes","No", "Yes","No", "Yes","No", "Yes")),
+          omit.stat = c("f", "ser", "theta"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+
+```
+
+
+```{r}
+df=bot_days_data
+
+s_2way <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+s_2way_ctr_mixed <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      mixed:bot_interaction+
+      mixed:after+
+      mixed:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+s_2way_ctr_other <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      other:bot_interaction+
+      other:after+
+      other:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+s_2way_ctr_all_low <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      all_low_score:bot_interaction+
+      all_low_score:after+
+      all_low_score:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+s_2way_ctr_spec <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      specialized:bot_interaction+
+      specialized:after+
+      specialized:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+s_2way_ctr2 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+a_2way <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+a_2way_ctr_mixed <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      mixed:bot_interaction+
+      mixed:after+
+      mixed:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+a_2way_ctr_other <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      other:bot_interaction+
+     other:after+
+      other:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+a_2way_ctr_all_low <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      all_low_score:bot_interaction+
+     all_low_score:after+
+      all_low_score:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+a_2way_ctr_spec<-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness+
+      #BOTOMETER_bot_prob_bot:n_low_score+
+      specialized:bot_interaction+
+     specialized:after+
+      specialized:bot_interaction:after#+
+      
+      #as.factor(topic)
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+
+
+a_2way_ctr2 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+      
+      #bot_prob_high+
+      #interaction_senti+
+      #log10(senti_size_t7+1)+
+      senti_mean_t2+
+      #cascade+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+# a_2way_ctr <-  lm(
+#     log10(senti_size+1) ~
+#       
+#       bot_interaction +
+#       after +
+#       bot_interaction:after+
+#       
+#       #bot_prob_high+
+#       #interaction_senti+
+#       log10(senti_size_t2+1)+
+#       senti_mean_t2+
+#       #cascade+
+#       burstiness+
+#       #pos_num+
+#       #BOTOMETER_bot_prob_user+
+#       #BOTOMETER_bot_prob_bot+
+#       as.factor(topic)
+#     ,
+#     #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+#     data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2,]
+#   )
+
+
+
+```
+
+
+
+```{r}
+n_distinct(bot_days_data$author_id_)
+```
+
+```{r}
+n_distinct(bot_days_data[bot_days_data$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_data[bot_days_data$bot_interaction!=1,]$author_id_)
+
+```
+
+
+
+```{r}
+  stargazer(a_2way, a_2way_ctr,a_2way_ctr_mixed,a_2way_ctr_other,a_2way_ctr_all_low, a_2way_ctr_spec,
+    s_2way, s_2way_ctr,s_2way_ctr_mixed,s_2way_ctr_other,s_2way_ctr_all_low, s_2way_ctr_spec,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          order = c("^bot_interaction$",
+                    "^after$",
+                    "^bot_interaction:after$",
+                    "^Constant$"),
+          report=("vc*p"),
+          column.labels = c("no controls", "w controls", "w controls", "w controls", "w controls","no controls", "w controls", "w controls", "w controls", "w controls"),
+          #add.lines=list(c("FE for ID","No", "Yes","No", "Yes","No", "Yes","No", "Yes")),
+          omit.stat = c("f", "ser", "theta"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+library(corrplot)
+
+# Compute correlation matrix
+correlation_matrix <- cor(bot_days_data2[c("senti_size", 
+                                           "interaction_senti", 
+                                            "retweet_count_original", 
+                                            "like_count_original", 
+                                            "like_count_interaction", 
+                                            "burstiness")])
+
+# Create a correlation plot
+corrplot(correlation_matrix, sig.level=0.05, 
+         method='color', diag=FALSE, addCoef.col=1, type='upper', insig='blank',
+         number.cex=.8)
+```
+
+```{r}
+bot_days_data_opinion<-read.csv("/Users/vorsi/Dropbox/bot and agenda-setting/orsi/bot_text/bot_days_data_with_opinion_filled_0307.csv")
+
+```
+
+
+
+```{r}
+df=bot_days_data_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65, amount70,amount75, amount80,senti65,senti70,senti75,senti80,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          report=("vc*p"),
+          omit.stat = c("f", "ser", "theta"),
+           order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+df=bot_days_data2
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65, amount70,amount75, amount80,senti65,senti70,senti75,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          report=("vc*p"),
+           order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_data2
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_nc <-  glm.nb(
+    senti_size ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+senti65_nc <-  lm(
+    senti_mean ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+     
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+senti70_nc <-  lm(
+    senti_mean ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+     
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount70_nc <-  glm.nb(
+    senti_size ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+senti75_nc <-  lm(
+    senti_mean ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+     
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+amount75_nc <-  glm.nb(
+    senti_size ~
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+
+
+
+
+
+stargazer(amount65_nc, amount65, amount70_nc, amount70,  amount75_nc, amount75, 
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount"),
+           order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          report=("vc*p"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+stargazer(senti65_nc, senti65, senti70_nc, senti70,  senti75_nc, senti75, 
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Sentiment"),
+           order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          report=("vc*p"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+library(lfe)
+
+plot_model(senti65, type="pred", ci.lvl = 0.95, terms=c("astroturf_score_bot",  'bot_interaction[0,1]','after[0,1]'))
+```
+#ONLY ASTROTURFS
+
+```{r}
+astro_med<-median(bot_days_data2$astroturf_score_bot)
+```
+
+```{r}
+astro_med
+```
+
+
+```{r}
+bot_days_data3 <- bot_days_data2[!is.na(bot_days_data2$astroturf_score_bot), ]
+
+bot_days_pro_opinion <- bot_days_data_opinion[bot_days_data_opinion$before_opinion_cat=='positive', ]
+bot_days_con_opinion <- bot_days_data_opinion[bot_days_data_opinion$before_opinion_cat=='negative', ]
+bot_days_neutral_opinion <- bot_days_data_opinion[bot_days_data_opinion$before_opinion_cat=='neutral', ]
+
+#astro_med<-median(bot_days_data3$astroturf_score_bot)
+bot_days_data_astroturf<-bot_days_data3[bot_days_data3$astroturf_score_bot>=2.5,]
+#bot_days_data_fakefollower<-bot_days_data3[bot_days_data3$fake_follower_score_bot>=2.5,]
+#bot_days_data_other<-bot_days_data3[bot_days_data3$other_score_bot>=2.5,]
+bot_days_data_NOT_astroturf<-bot_days_data3[bot_days_data3$astroturf_score_bot<2.5,]
+
+#bot_days_data_NOT_astroturf<-bot_days_data3[bot_days_data3$astroturf_score_bot<2.5 & bot_days_data3$fake_follower_score_bot<2.5 & bot_days_data3$other_score_bot<2.5,]
+
+
+```
+
+```{r}
+n_distinct(bot_days_pro_opinion[bot_days_pro_opinion$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_con_opinion[bot_days_con_opinion$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_neutral_opinion[bot_days_neutral_opinion$bot_interaction==1,]$author_id_)
+
+
+```
+
+
+```{r}
+dim(bot_days_data2)
+dim(bot_days_data3)
+dim(bot_days_data_astroturf)
+dim(bot_days_data_other)
+dim(bot_days_data_fakefollower)
+dim(bot_days_data_NOT_astroturf)
+
+
+```
+
+```{r}
+n_distinct(bot_days_data_astroturf[bot_days_data_astroturf$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_data_fakefollower[bot_days_data_fakefollower$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_data_other[bot_days_data_other$bot_interaction==1,]$author_id_)
+n_distinct(bot_days_data_NOT_astroturf[bot_days_data_NOT_astroturf$bot_interaction==1,]$author_id_)
+
+```
+```{r}
+n_distinct(bot_days_data2[bot_days_data2$bot_interaction==0,]$author_id_)
+```
+
+```{r}
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_pro <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_pro <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_pro <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_pro, opinion70_opinion_pro,opinion75_opinion_pro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_neutral <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_neutral <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_neutral <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_neutral, opinion70_opinion_neutral,opinion75_opinion_neutral,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_con <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_con <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_con <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_con, opinion70_opinion_con,opinion75_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+stargazer(opinion65_opinion_pro,opinion65_opinion_neutral,opinion65_opinion_con, 
+          opinion70_opinion_pro,opinion70_opinion_neutral,opinion70_opinion_con,
+          opinion70_opinion_pro,opinion70_opinion_neutral,opinion75_opinion_con,
+          type="latex",
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          column.labels = c("Pro",  "Neutral", "Con", "Pro",  "Neutral", "Con","Pro",  "Neutral", "Con"),
+          model.names = FALSE,
+          dep.var.labels = c( "Opinion Change"),
+          #report=("vc*p"),
+         # se = list("se"),
+         model.numbers = FALSE,
+          omit.stat = c("f", "ser", "theta"),
+          add.lines =  list(c("CAP","65", "70", "75","65", "70", "75","65", "70", "75")),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+stargazer(opinion65_opinion_pro_control,opinion65_opinion_neutral_control,opinion65_opinion_con_control, 
+          opinion70_opinion_pro_control,opinion70_opinion_neutral_control,opinion70_opinion_con_control,
+          opinion70_opinion_pro_control,opinion70_opinion_neutral_control,opinion75_opinion_con_control,
+          type="latex",
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          column.labels = c("Pro",  "Neutral", "Con", "Pro",  "Neutral", "Con","Pro",  "Neutral", "Con"),
+          model.names = FALSE,
+          dep.var.labels = c( "Opinion Change"),
+                   covariate.labels = c("Constant", "Bot interaction (yes = 1)",
+"After (yes = 1)",  
+"Bot interaction*After",  "Sentiment of interaction" ,
+"Opinion of user interaction" ,
+"Num. of retweet of interaction" ,
+"Num. of likes of interaction" ,
+"Bot score (astroturf)",
+"Topic 1 (Football game protest)",
+"Topic 2 (COP25 protest)" ,
+"Topic 3  (Anti-XR messages)",
+"Topic 4 (XR founder's remark on holocaust)",
+  "Topic 5 (Disruptive engagement)",
+ "Topic 6 (Anti London XR protest messages)",
+ "Topic 7 (Politicized activism )","Burstiness"),
+          #report=("vc*p"),
+         # se = list("se"),
+         model.numbers = FALSE,
+          omit.stat = c("f", "ser", "theta"),
+          add.lines =  list(c("CAP","65", "70", "75","65", "70", "75","65", "70", "75")),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_pro_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_pro_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_pro_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+    interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_pro_control, opinion70_opinion_pro_control,opinion75_opinion_pro_control,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+         covariate.labels = c("Constant", "Bot interaction (yes = 1)",
+"After (yes = 1)",  
+"Bot interaction*After",  "Sentiment of interaction" ,
+"Opinion of user interaction" ,
+"Num. of retweet of interaction" ,
+"Num. of likes of interaction" ,
+"Bot score (astroturf)",
+"Topic 1 (Football game protest)",
+"Topic 2 (COP25 protest)" ,
+"Topic 3  (Anti-XR messages)",
+"Topic 4 (XR founder's remark on holocaust)",
+  "Topic 5 (Disruptive engagement)",
+ "Topic 6 (Anti London XR protest messages)",
+ "Topic 7 (Politicized activism )","Burstiness"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_con_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+     user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_con_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+    user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_con_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+    interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    , 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_con_control, opinion70_opinion_con_control,opinion75_opinion_con_control,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+
+
+
+opinion65_opinion_neutral_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+     user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+opinion70_opinion_neutral_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+    interaction_senti + 
+     user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+opinion75_opinion_neutral_control <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after+
+    interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic)+
+      burstiness
+    , 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(opinion65_opinion_neutral_control, opinion70_opinion_neutral_control,opinion75_opinion_neutral_control,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          #dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          #column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_opinion_pro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_opinion_pro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_opinion_pro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+senti65_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_opinion_pro, amount70_opinion_pro,amount75_opinion_pro,senti65_opinion_pro,senti70_opinion_pro,senti75_opinion_pro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+bot_days_data_opinion$decreased_support
+```
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_increase_neutral <-  glm(
+    increased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_decrease_neutral <-  glm(
+    decreased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_increase_con <-  glm(
+    increased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_decrease_con <-  glm(
+    decreased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_increase_pro <-  glm(
+    increased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_decrease_pro <-  glm(
+    decreased_support ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+
+
+
+
+stargazer(amount65_all_support_increase_con,
+  amount65_all_support_increase_neutral,  
+          amount65_all_support_increase_pro, 
+  amount65_all_support_decrease_con, 
+          amount65_all_support_decrease_neutral,  
+          amount65_all_support_decrease_pro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Increase", "Decrease"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Negative", "Neutral", "Positive","Negative", "Neutral", "Positive"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_diff_neutral <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      #as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, 
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_diff_con <-  lm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      #as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_diff_pro <-  glm(
+    opinion_difference ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      #as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+
+
+stargazer(amount65_all_support_diff_con,
+  amount65_all_support_diff_neutral,  
+          amount65_all_support_diff_pro, 
+
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Opinion Difference"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Negative", "Neutral", "Positive"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+bot_days_neutral_opinion$opinion_flip
+```
+
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_flip_neutral <-  glm(
+    opinion_flip ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_netr_neutral <-  glm(
+    opinion_neutralization ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_flip_con <-  glm(
+    opinion_flip ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_netr_con <-  glm(
+    opinion_neutralization ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_support_flip_pro <-  glm(
+    opinion_flip ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+amount65_all_support_netr_pro <-  glm(
+    opinion_neutralization  ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      as.factor(user_interaction_opinion_cat) +
+      retweet_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, family = "binomial", data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,], na.action=na.exclude)
+
+
+
+
+
+
+stargazer(amount65_all_support_flip_con,
+  amount65_all_support_flip_neutral,  
+          amount65_all_support_flip_pro, 
+  amount65_all_support_netr_con, 
+          amount65_all_support_netr_neutral,  
+          amount65_all_support_netr_pro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Flip", "Neutralization"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Negative", "Neutral", "Positive","Negative", "Neutral", "Positive"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_pro_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_opinion_pro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_all_opinion_pro<-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+     user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_all_opinion_pro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti65_all_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_all_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_all_opinion_pro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_all_opinion_pro, amount70_all_opinion_pro,amount75_all_opinion_pro,senti65_all_opinion_pro,senti70_all_opinion_pro,senti75_all_opinion_pro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_opinion_con <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_all_opinion_con<-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_all_opinion_con <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+     user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti65_all_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_all_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_all_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_all_opinion_con, amount70_all_opinion_con,amount75_all_opinion_con,senti65_all_opinion_con,senti70_all_opinion_con,senti75_all_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+
+amount65_all_opinion_neutral <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_all_opinion_neutral<-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_all_opinion_neutral <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti65_all_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_all_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      user_interaction_opinion +
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_all_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      user_interaction_opinion + 
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      astroturf_score_bot +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_all_opinion_neutral, amount70_all_opinion_neutral,amount75_all_opinion_neutral,senti65_all_opinion_neutral,senti70_all_opinion_neutral,senti75_all_opinion_neutral,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+stargazer(senti75_opinion_pro,senti75_all_opinion_pro,
+          senti75_opinion_neutral,senti75_all_opinion_neutral,
+          senti75_opinion_con,senti75_all_opinion_con,
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount"),
+          #report=("vc*p"),
+         # se = list("se"),
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Pro", "Neutral","Neutral", "Con", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+stargazer(amount75_opinion_pro,amount75_all_opinion_pro,
+          amount75_opinion_neutral, amount75_all_opinion_neutral,
+         amount75_opinion_con, amount75_all_opinion_con,
+
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount"),
+          #report=("vc*p"),
+         # se = list("se"),
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Pro", "Neutral","Neutral", "Con", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+stargazer(amount65_all_opinion_pro,amount65_opinion_pro,amount65_all_opinion_neutral,amount65_opinion_neutral, amount65_all_opinion_con,amount65_opinion_con,
+          senti65_all_opinion_pro,senti65_opinion_pro,senti65_all_opinion_neutral,senti65_opinion_neutral,senti65_all_opinion_con,senti65_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Pro", "Neutral","Neutral", "Con", "Con", "Pro", "Pro", "Neutral","Neutral", "Con", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+```{r}
+stargazer(amount70_all_opinion_pro,amount70_opinion_pro,amount70_all_opinion_neutral,amount70_opinion_neutral, amount70_all_opinion_con,amount70_opinion_con,
+          senti70_all_opinion_pro,senti70_opinion_pro,senti70_all_opinion_neutral,senti70_opinion_neutral,senti70_all_opinion_con,senti70_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Pro", "Neutral","Neutral", "Con", "Con", "Pro", "Pro", "Neutral","Neutral", "Con", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+```{r}
+stargazer(amount75_all_opinion_pro,amount75_opinion_pro,amount75_all_opinion_neutral,amount75_opinion_neutral, amount75_all_opinion_con,amount75_opinion_con,
+          senti75_all_opinion_pro,senti75_opinion_pro,senti75_all_opinion_neutral,senti75_opinion_neutral,senti75_all_opinion_con,senti75_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          order = c("^Constant$", "bot_interaction$", "after", "bot_interaction:after"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Pro", "Neutral","Neutral", "Con", "Con", "Pro", "Pro", "Neutral","Neutral", "Con", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+
+```{r}
+data_file <- bot_days_pro_opinion
+
+model_object <- senti65_all_opinion_pro
+s_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_65_all_opinion_pro.csv", row.names = FALSE)
+
+
+model_object <- senti70_all_opinion_pro
+s_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_70_all_opinion_pro.csv", row.names = FALSE)
+
+
+model_object <- senti75_all_opinion_pro
+s_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_75_all_opinion_pro.csv", row.names = FALSE)
+
+model_object <- amount65_all_opinion_pro
+a_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_65_all_opinion_pro.csv", row.names = FALSE)
+
+
+model_object <- amount70_all_opinion_pro
+a_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_70_all_opinion_pro.csv", row.names = FALSE)
+
+
+model_object <- amount75_all_opinion_pro
+a_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_75_all_opinion_pro.csv", row.names = FALSE)
+
+
+
+
+
+```
+
+
+
+```{r}
+data_file <- bot_days_con_opinion
+
+model_object <- senti65_all_opinion_con
+s_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_65_all_opinion_con.csv", row.names = FALSE)
+
+
+model_object <- senti70_all_opinion_con
+s_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_70_all_opinion_con.csv", row.names = FALSE)
+
+
+model_object <- senti75_all_opinion_con
+s_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_75_all_opinion_con.csv", row.names = FALSE)
+
+model_object <- amount65_all_opinion_con
+a_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_65_all_opinion_con.csv", row.names = FALSE)
+
+
+model_object <- amount70_all_opinion_con
+a_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_70_all_opinion_con.csv", row.names = FALSE)
+
+
+model_object <- amount75_all_opinion_con
+a_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_75_all_opinion_con.csv", row.names = FALSE)
+
+
+
+
+
+```
+
+```{r}
+summary(amount65_all_opinion_con)
+```
+
+
+```{r}
+data_file <- bot_days_neutral_opinion
+
+model_object <- senti65_all_opinion_neutral
+s_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_65_all_opinion_neutral.csv", row.names = FALSE)
+
+
+model_object <- senti70_all_opinion_neutral
+s_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_70_all_opinion_neutral.csv", row.names = FALSE)
+
+
+model_object <- senti75_all_opinion_neutral
+s_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_senti_75_all_opinion_neutral.csv", row.names = FALSE)
+
+model_object <- amount65_all_opinion_neutral
+a_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_65_all_opinion_neutral.csv", row.names = FALSE)
+
+
+model_object <- amount70_all_opinion_neutral
+a_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_70_all_opinion_neutral.csv", row.names = FALSE)
+
+
+model_object <- amount75_all_opinion_neutral
+a_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_amount_75_all_opinion_neutral.csv", row.names = FALSE)
+
+
+
+
+
+```
+
+```{r}
+stargazer(amount65_opinion_pro,amount65_opinion_neutral, amount65_opinion_con,
+          senti65_opinion_pro,senti65_opinion_neutral,senti65_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("Pro", "Neutral", "Con","Pro", "Neutral", "Con"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_con_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_opinion_con <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_opinion_con <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_opinion_con <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+senti65_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_opinion_con <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_opinion_con, amount70_opinion_con,amount75_opinion_con,senti65_opinion_con,senti70_opinion_con,senti75_opinion_con,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+
+```{r}
+df=bot_days_neutral_opinion
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_opinion_neutral <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_opinion_neutral <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_opinion_neutral <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+senti65_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_opinion_neutral <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65_opinion_neutral, amount70_opinion_neutral,amount75_opinion_neutral,senti65_opinion_neutral,senti70_opinion_neutral,senti75_opinion_neutral,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+df=bot_days_data_other
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+senti65 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+
+stargazer(amount65, amount70,amount75,senti65,senti70,senti75,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75","65", "70", "75"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+df=bot_days_data_other
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65_all_astro, amount70_all_astro,amount75_all_astro, amount80_all_astro,senti65_all_astro,senti70_all_astro,senti75_all_astro,senti80_all_astro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+```{r}
+df=bot_days_data_astroturf
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80 <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80 <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65, amount70,amount75, amount80,senti65,senti70,senti75,senti80,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+
+
+```{r}
+df=bot_days_data_astroturf
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80_all_astro <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80_all_astro <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65_all_astro, amount70_all_astro,amount75_all_astro, amount80_all_astro,senti65_all_astro,senti70_all_astro,senti75_all_astro,senti80_all_astro,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+```{r}
+stargazer(amount65,  amount65_all_astro,amount70, amount70_all_astro,amount75, amount75_all_astro,
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "65","70","70", "75", '75'),
+          star.cutoffs = c(0.05, 0.01, 0.001))
+```
+
+```{r}
+stargazer(senti65,  senti65_all_astro,senti70, senti70_all_astro, senti75, senti75_all_astro,
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "65","70","70", "75", '75'),
+          star.cutoffs = c(0.05, 0.01, 0.001))
+```
+
+```{r}
+data_file <- bot_days_data_astroturf
+
+model_object <- senti65_all_astro
+s_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/uniqueS/PRED_s_2way_ctr_syn65.csv", row.names = FALSE)
+
+model_object <- senti70_all_astro
+s_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn70.csv", row.names = FALSE)
+
+
+model_object <- senti75_all_astro
+s_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn75.csv", row.names = FALSE)
+
+
+model_object <- senti80_all_astro
+s_2way_ctr_syn80 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn80, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn80.csv", row.names = FALSE)
+
+
+model_object <- amount65_all_astro
+a_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn65.csv", row.names = FALSE)
+
+
+model_object <- amount70_all_astro
+a_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn70.csv", row.names = FALSE)
+
+
+model_object <- amount75_all_astro
+a_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn75.csv", row.names = FALSE)
+
+
+model_object <- amount80_all_astro
+a_2way_syn80 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn80, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn80.csv", row.names = FALSE)
+
+
+
+```
+
+```{r}
+df=bot_days_data_NOT_astroturf
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_other_all <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_other_all <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_other_all <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80_other_all <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65_other_all <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_other_all <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_other_all <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness, 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80_other_all <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after +
+      interaction_senti + 
+      retweet_count_original +
+      #like_count_original +
+      like_count_interaction +
+      as.factor(topic) +
+      burstiness
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65_other_all, amount70_other_all,amount75_other_all, amount80_other_all,senti65_other_all,senti70_other_all,senti75_other_all,senti80_other_all,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+```{r}
+df=bot_days_data_NOT_astroturf
+t1=.65
+t2=.7
+t3=.75
+t4=.8
+
+amount65_small_other <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+
+amount70_small_other <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+
+amount75_small_other <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+amount80_small_other <-  glm.nb(
+    senti_size ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+senti65_small_other <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t1,],
+    na.action=na.exclude
+  )
+
+senti70_small_other <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after
+    ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t2,],
+    na.action=na.exclude
+  )
+
+senti75_small_other <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after , 
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t3,],
+    na.action=na.exclude
+  )
+
+senti80_small_other <-  lm(
+    senti_mean ~
+      
+      bot_interaction +
+      after +
+      bot_interaction:after 
+       ,
+    #data = df[df$senti_size<100 & (df$after_timegap_2<0 | (df$after_timegap_2>=-30 & df$after_timegap_2<=30)),]
+    data = df[df$total_senti_size_before>0 & df$after_timegap_2!=0 & df$bot_meet_frequency<2 & df$BOTOMETER_bot_prob_bot>=t4,],
+    na.action=na.exclude
+  )
+
+
+
+
+
+stargazer(amount65_small_other, amount70_small_other,amount75_small_other, amount80_small_other,senti65_small_other,senti70_small_other,senti75_small_other,senti80_small_other,
+          type="text",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount", "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "70", "75", "80","65", "70", "75", "80"),
+          star.cutoffs = c(0.05, 0.01, 0.001)
+          )
+```
+```{r}
+stargazer(amount65_small_other, amount65_other_all, amount70_small_other, amount70_other_all,amount75_small_other, amount75_other_all,
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Amount"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "65","70","70", "75", '75'),
+          star.cutoffs = c(0.05, 0.01, 0.001))
+```
+
+```{r}
+stargazer(senti65_small_other, senti65_other_all, senti70_small_other, senti70_other_all,senti75_small_other, senti75_other_all,
+          type="latex",
+          #keep = c("bot_interaction*", "after*","Const*"),
+          model.names = FALSE,
+          dep.var.labels = c( "Sentiment"),
+          #report=("vc*p"),
+         # se = list("se"),
+          omit.stat = c("f", "ser", "theta"),
+          column.labels = c("65", "65","70","70", "75", '75'),
+          star.cutoffs = c(0.05, 0.01, 0.001))
+```
+
+
+
+Synthetic data file with fixed effects dummies factor
+```{r}
+create_synt_factor <-
+  function(model_object, data_file, cluster_attrib = NULL) {
+    # this is a function that creates synthetic data when there is a fixed effect factor
+    
+    # this is a function that creates synthetic data
+    var_names <- names(model_object$coefficients)
+    #delete intercept
+    var_sel <- grepl("ntercept", var_names) #small and big i
+    var_names <- var_names[!var_sel]
+    #delete squared term
+    var_sel <- grepl("2)", var_names)
+    var_names <- var_names[!var_sel]
+    
+    #save interaction
+    var_sel <- grepl(":", var_names)
+    var_inter_names <- var_names[var_sel]
+    
+    var_inter_names <-
+      unique(unlist(strsplit(var_inter_names, "[:]")))
+    
+    #delete interactions
+    var_sel <- grepl(":", var_names)
+    var_names <- var_names[!var_sel]
+    
+    #delete variables involved in interactions
+    for (i in 1:length(var_inter_names)) {
+      var_names <- var_names[var_names != var_inter_names[i]]
+    }
+    
+    #identify factor
+    var_sel <- grepl("as.factor*", var_names)
+    var_factor_coefs <- var_names[var_sel]
+    var_factor <-
+      sub("\\).*", "", sub(".*\\(", "", var_factor_coefs))[1]
+    
+    #get the first factor level
+    pos_start <-
+      which(strsplit(var_factor_coefs[1], "")[[1]] == ")") + 1
+    pos_end <- nchar(var_factor_coefs[1])
+    var_factor_level <-
+      as.numeric(substr(var_factor_coefs[1], pos_start, pos_end))
+    
+    #remove factors from variable list
+    var_names <- var_names[!var_sel]
+    
+    #results
+    cbind(var_inter_names)
+    cbind(var_names)
+    
+    #min and max values for interaction variables
+    inter_min_vec <- array(0, dim = c(1, length(var_inter_names)))
+    inter_max_vec <- array(0, dim = c(1, length(var_inter_names)))
+    
+    inter_min_max_list <- list()
+    
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_min_vec[v] <-
+        min(as.numeric(unlist(data_file[var_inter_names[v]])), na.rm = TRUE)
+    }
+    
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_max_vec[v] <-
+        max(as.numeric(unlist(data_file[var_inter_names[v]])), na.rm = TRUE)
+    }
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_min_max_list[[v]] <-
+        c(inter_min_vec[1,v], inter_max_vec[1,v])
+    }
+    
+    
+    
+    #number of variables and interactions
+    n_inter_vars <- length(var_inter_names)
+    n_vars <- length(var_names)
+    
+    #interaction combination grid
+    inter_grid <- expand.grid(
+      inter_min_max_list
+    )
+    
+    #fixing controls at the mean
+    means_vec <- array(0, dim = c(1, n_vars))
+    
+    for (v in 1:n_vars) {
+      means_vec[v] <-
+        mean(as.numeric(unlist(data_file[var_names[v]])), na.rm = TRUE)
+    }
+    
+    means_vec <- c(means_vec, var_factor_level)
+    #assembling the synthetic datafile
+    n_rows <- dim(inter_grid)[1]
+    means_grid <-
+      matrix(
+        means_vec,
+        nrow = n_rows,
+        ncol = length(means_vec),
+        byrow = TRUE
+      )
+    
+    syn_data <- data.frame(cbind(inter_grid, means_grid))
+    names(syn_data) <- c(var_inter_names, var_names, var_factor)
+    
+    # #with clustered SE or robust SE
+    # #--if clustering attribute is added, clustered SE is computed, otherwise robust SE
+    # if (is.null(cluster_attrib)) {
+    #   predvals <-
+    #     predict(
+    #       model_object,
+    #       newdata = syn_data,
+    #       se.fit = TRUE,
+    #       vcov.fun = "vcovHC",
+    #       vcov.type = "HC1"
+    #     )
+    # }
+    # if (!is.null(cluster_attrib)) {
+    #   predvals <-
+    #     predict(
+    #       model_object,
+    #       newdata = syn_data,
+    #       se.fit = TRUE,
+    #       vcov.fun = "vcovHC",
+    #       vcov.type = "HC1",
+    #       cluster = cluster_attrib
+    #     )
+    # }
+    
+    #withour robust SE it would be
+    predvals <- predict(model_object, newdata=syn_data, se.fit = TRUE)
+    
+    
+    syn_data$ols_pred <- predvals$fit
+    syn_data$ols_low <- (predvals$fit - 1.96 * predvals$se.fit)
+    syn_data$ols_up <- (predvals$fit + 1.96 * predvals$se.fit)
+    
+    return(syn_data)
+  }
+```
+
+```{r}
+create_synt <- function(model_object, data_file) {
+    # this is a function that creates synthetic data when there is NO fixed effect factor
+    
+    # this is a function that creates synthetic data
+    var_names <- names(model_object$coefficients)
+    #delete intercept
+    var_sel <- grepl("ntercept", var_names) #small and big i
+    var_names <- var_names[!var_sel]
+    #delete squared term
+    var_sel <- grepl("2)", var_names)
+    var_names <- var_names[!var_sel]
+    
+    #save interaction
+    var_sel <- grepl(":", var_names)
+    var_inter_names <- var_names[var_sel]
+    
+    var_inter_names <-
+      unique(unlist(strsplit(var_inter_names, "[:]")))
+    
+    #delete interactions
+    var_sel <- grepl(":", var_names)
+    var_names <- var_names[!var_sel]
+    
+    #delete variables involved in interactions
+    for (i in 1:length(var_inter_names)) {
+      var_names <- var_names[var_names != var_inter_names[i]]
+    }
+    
+    
+    #results
+    cbind(var_inter_names)
+    cbind(var_names)
+    
+    #min and max values for interaction variables
+    inter_min_vec <- array(0, dim = c(1, length(var_inter_names)))
+    inter_max_vec <- array(0, dim = c(1, length(var_inter_names)))
+    
+    inter_min_max_list <- list()
+    
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_min_vec[v] <-
+        min(as.numeric(unlist(data_file[var_inter_names[v]])), na.rm = TRUE)
+    }
+    
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_max_vec[v] <-
+        max(as.numeric(unlist(data_file[var_inter_names[v]])), na.rm = TRUE)
+    }
+    
+    for (v in 1:length(var_inter_names)) {
+      inter_min_max_list[[v]] <-
+        c(inter_min_vec[1,v], inter_max_vec[1,v])
+    }
+    
+    
+    
+    #number of variables and interactions
+    n_inter_vars <- length(var_inter_names)
+    n_vars <- length(var_names)
+    
+    #interaction combination grid
+    inter_grid <- expand.grid(
+      inter_min_max_list
+    )
+    
+    #are there controls?
+    if(n_vars>0){
+    #fixing controls at the mean
+    means_vec <- array(0, dim = c(1, n_vars))
+    
+    for (v in 1:n_vars) {
+      means_vec[v] <-
+        mean(as.numeric(unlist(data_file[var_names[v]])), na.rm = TRUE)
+    }
+    
+
+    #assembling the synthetic datafile
+    n_rows <- dim(inter_grid)[1]
+    means_grid <-
+      matrix(
+        means_vec,
+        nrow = n_rows,
+        ncol = length(means_vec),
+        byrow = TRUE
+      )
+    
+    syn_data <- data.frame(cbind(inter_grid, means_grid))
+    names(syn_data) <- c(var_inter_names, var_names)
+    }
+    
+    if(n_vars==0){
+    syn_data <- data.frame(cbind(inter_grid))
+    names(syn_data) <- c(var_inter_names)
+    }  
+      
+  
+    
+    # #with clustered SE or robust SE
+    # #--if clustering attribute is added, clustered SE is computed, otherwise robust SE
+    # if (is.null(cluster_attrib)) {
+    #   predvals <-
+    #     predict(
+    #       model_object,
+    #       newdata = syn_data,
+    #       se.fit = TRUE,
+    #       vcov.fun = "vcovHC",
+    #       vcov.type = "HC1"
+    #     )
+    # }
+    # if (!is.null(cluster_attrib)) {
+    #   predvals <-
+    #     predict(
+    #       model_object,
+    #       newdata = syn_data,
+    #       se.fit = TRUE,
+    #       vcov.fun = "vcovHC",
+    #       vcov.type = "HC1",
+    #       cluster = cluster_attrib
+    #     )
+    # }
+    
+    #withour robust SE it would be
+    predvals <- predict(model_object, newdata=syn_data, se.fit = TRUE)
+    
+    
+    syn_data$ols_pred <- predvals$fit
+    syn_data$ols_low <- (predvals$fit - 1.96 * predvals$se.fit)
+    syn_data$ols_up <- (predvals$fit + 1.96 * predvals$se.fit)
+    
+    return(syn_data)
+  }
+```
+
+
+```{r}
+data_file <- bot_days_data_NOT_astroturf
+
+model_object <- senti65_other_all
+s_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn65_all_bot.csv", row.names = FALSE)
+
+model_object <- senti70_other_all
+s_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn70_all_bot.csv", row.names = FALSE)
+
+
+model_object <- senti75_other_all
+s_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn75_all_bot.csv", row.names = FALSE)
+
+
+model_object <- senti80_other_all
+s_2way_ctr_syn80 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn80, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_s_2way_ctr_syn80_all_bot.csv", row.names = FALSE)
+
+
+model_object <- amount65_other_all
+a_2way_ctr_syn65 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn65, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn65_all_bot.csv", row.names = FALSE)
+
+
+model_object <- amount70_other_all
+a_2way_ctr_syn70 <- create_synt_factor(model_object, data_file)
+write.csv(a_2way_ctr_syn70, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn70_all_bot.csv", row.names = FALSE)
+
+
+model_object <- amount75_other_all
+a_2way_ctr_syn75 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn75, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn75_all_bot.csv", row.names = FALSE)
+
+
+model_object <- amount80_other_all
+a_2way_syn80 <- create_synt_factor(model_object, data_file)
+write.csv(s_2way_ctr_syn80, "/Users/vorsi/Dropbox/bot and agenda-setting/codes and data/orsi/PREDS/PRED_a_2way_ctr_syn80_all_bot.csv", row.names = FALSE)
+
+
+
+```
+
+
+```{r}
+a_2way_syn80
+```
+
+
+
+
+```{r, fig.width = 5, fig.height = 5}
+d=.1
+p=2
+s=0
+
+botexp_col <- "red2"
+botexp_col2 <- "red4"
+match_col <- "gray50"
+match_col2 <- "gray30"
+
+match_before <- df$pred[df$bot_interaction==0 & df$after==0]
+botexp_before <- df$pred[df$bot_interaction==1 & df$after==0]
+
+plot_senti <- ggplot() +
+  geom_point(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$atypical_bot==0,], aes(x=after+d, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$atypical_bot==0,], aes(x=after+d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=botexp_col) +
+  
+  geom_point(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$atypical_bot==1,], aes(x=after+1.5*d, y=ols_pred), color=botexp_col2, size=p)+
+  geom_errorbar(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$atypical_bot==1,], aes(x=after+1.5*d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=botexp_col2) +
+  
+  geom_point(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$atypical_bot==0,], aes(x=after-1.5*d, y=ols_pred), color=match_col, size=p)+
+  geom_errorbar(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$atypical_bot==0,], aes(x=after-1.5*d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=match_col) +
+  
+    geom_point(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$atypical_bot==1,], aes(x=after-d, y=ols_pred), color=match_col2, size=p)+
+  geom_errorbar(data = s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$atypical_bot==1,], aes(x=after-d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=match_col2) +
+  
+  scale_x_continuous(breaks = c(.15,.85), labels = c("Before", "After")) +
+  labs(x ="Bot exposure", y = "Predicted sentiment") +
+  
+  geom_vline(xintercept = .5, linewidth=.1) +
+  
+  #annotate(geom="text", x=-d, y=max_y, label="bot-exposed sample", color=botexp_col, hjust=0, size=2.5) +
+  #annotate(geom="text", x=-d, y=max_y*.9, label="matched sample", color=match_col, hjust=0, size=2.5) +
+  
+  theme(
+    aspect.ratio=1,
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_text(size = 11, colour = "black"), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 9, colour = "black") 
+  )
+
+
+plot_amount <- ggplot() +
+  geom_point(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$atypical_bot==0,], aes(x=after+d, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$atypical_bot==0,], aes(x=after+d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=botexp_col) +
+  
+  geom_point(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$atypical_bot==1,], aes(x=after+1.5*d, y=ols_pred), color=botexp_col2, size=p)+
+  geom_errorbar(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$atypical_bot==1,], aes(x=after+1.5*d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=botexp_col2) +
+  
+  geom_point(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$atypical_bot==0,], aes(x=after-1.5*d, y=ols_pred), color=match_col, size=p)+
+  geom_errorbar(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$atypical_bot==0,], aes(x=after-1.5*d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=match_col) +
+  
+    geom_point(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$atypical_bot==1,], aes(x=after-d, y=ols_pred), color=match_col2, size=p)+
+  geom_errorbar(data = a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$atypical_bot==1,], aes(x=after-d, ymin=ols_low, ymax=ols_up), width=.05, position=position_dodge(1), color=match_col2) +
+  
+  scale_x_continuous(breaks = c(.15,.85), labels = c("Before", "After")) +
+  labs(x ="Bot exposure", y = "Predicted sentiment") +
+  
+  geom_vline(xintercept = .5, linewidth=.1) +
+  
+  #annotate(geom="text", x=-d, y=max_y, label="bot-exposed sample", color=botexp_col, hjust=0, size=2.5) +
+  #annotate(geom="text", x=-d, y=max_y*.9, label="matched sample", color=match_col, hjust=0, size=2.5) +
+  
+  theme(
+    aspect.ratio=1,
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_text(size = 11, colour = "black"), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 9, colour = "black") 
+  )
+```
+
+```{r, fig.width = 8, fig.height = 4}
+pred_plots <- cowplot::plot_grid(plot_senti, plot_amount, nrow=1,align="h",axis = "b",
+           rel_widths  = 1,  
+           rel_heights = 1)
+pred_plots
+```
+
+
+
+
+
+Predicted change of difference
+```{r}
+before_diff <- a_2way_syn[a_2way_syn$bot_interaction==1 & a_2way_syn$after==0,]-a_2way_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_syn$after==0,]$ols_pred
+
+after_diff <- a_2way_syn[a_2way_syn$bot_interaction==1 & a_2way_syn$after==1,]-a_2way_syn[a_2way_syn$bot_interaction==0 & a_2way_syn$after==1,]$ols_pred
+
+a_change_diff <- after_diff-before_diff$ols_pred
+
+
+before_diff_lowbotprob <- a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$after==0 & a_2way_ctr_syn$atypical_bot==0,]-a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$after==0 & a_2way_ctr_syn$atypical_bot==0,]$ols_pred
+
+after_diff_lowbotprob <- a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$after==1 & a_2way_ctr_syn$atypical_bot==0,]-a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$after==1 & a_2way_ctr_syn$atypical_bot==0,]$ols_pred
+
+a_change_diff_lowbotprob <- after_diff_lowbotprob-before_diff_lowbotprob$ols_pred
+
+
+
+before_diff_hibotprob <- a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$after==0 & a_2way_ctr_syn$atypical_bot==1,]-a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$after==0 & a_2way_ctr_syn$atypical_bot==1,]$ols_pred
+
+after_diff_hibotprob <- a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==1 & a_2way_ctr_syn$after==1 & a_2way_ctr_syn$atypical_bot==1,]-a_2way_ctr_syn[a_2way_ctr_syn$bot_interaction==0 & a_2way_ctr_syn$after==1 & a_2way_ctr_syn$atypical_bot==1,]$ols_pred
+
+a_change_diff_hibotprob <- after_diff_hibotprob-before_diff_hibotprob$ols_pred
+
+
+
+
+
+
+before_diff <- s_2way_syn[s_2way_syn$bot_interaction==1 & s_2way_syn$after==0,]-s_2way_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_syn$after==0,]$ols_pred
+
+after_diff <- s_2way_syn[s_2way_syn$bot_interaction==1 & s_2way_syn$after==1,]-s_2way_syn[s_2way_syn$bot_interaction==0 & s_2way_syn$after==1,]$ols_pred
+
+s_change_diff <- after_diff-before_diff$ols_pred
+
+
+before_diff_lowbotprob <- s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$after==0 & s_2way_ctr_syn$atypical_bot==0,]-s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$after==0 & s_2way_ctr_syn$atypical_bot==0,]$ols_pred
+
+after_diff_lowbotprob <- s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$after==1 & s_2way_ctr_syn$atypical_bot==0,]-s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$after==1 & s_2way_ctr_syn$atypical_bot==0,]$ols_pred
+
+s_change_diff_lowbotprob <- after_diff_lowbotprob-before_diff_lowbotprob$ols_pred
+
+
+
+before_diff_hibotprob <- s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$after==0 & s_2way_ctr_syn$atypical_bot==1,]-s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$after==0 & s_2way_ctr_syn$atypical_bot==1,]$ols_pred
+
+after_diff_hibotprob <- s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==1 & s_2way_ctr_syn$after==1 & s_2way_ctr_syn$atypical_bot==1,]-s_2way_ctr_syn[s_2way_ctr_syn$bot_interaction==0 & s_2way_ctr_syn$after==1 & s_2way_ctr_syn$atypical_bot==1,]$ols_pred
+
+s_change_diff_hibotprob <- after_diff_hibotprob-before_diff_hibotprob$ols_pred
+
+
+
+
+
+```
+
+
+
+```{r, fig.width = 5, fig.height = 2.5}
+
+#-------------scale_x_continuous(expand = c(0,0), labels = dropLeadingZero)-----------------------------
+scaleFUN <- function(x) sprintf("%.2f", x)
+
+dropLeadingZero <- function(l){
+  str_replace(scaleFUN(l), '0[.]', '.') #[.] avoids using "." as regex wildcard
+}
+#-------------------------------------------------------------------------------------------------------
+
+d=.1
+p=2
+s=0
+r=1.75
+
+botexp_col <- "red2"
+botexp_col2 <- "red4"
+match_col <- "gray50"
+match_col2 <- "gray30"
+
+
+plot_senti_diff <- ggplot() +
+  
+  geom_box(aes(xmin = .3, xmax = 1, ymin = -.035, ymax = .01), fill = "grey85", alpha = 0.4, radius=r)+
+  #geom_vline(xintercept = .5, linewidth=.1) +
+  geom_hline(yintercept = 0, linewidth=.2) +
+  
+  geom_point(data = s_change_diff, aes(x=.15, y=ols_pred), color=botexp_col2, size=p)+
+  geom_errorbar(data = s_change_diff, aes(x=.15, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col2) +
+  
+  geom_point(data = s_change_diff_lowbotprob, aes(x=.5, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = s_change_diff_lowbotprob, aes(x=.5, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col) +
+
+  geom_point(data = s_change_diff_hibotprob, aes(x=.85, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = s_change_diff_hibotprob, aes(x=.85, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col) +    
+  
+  scale_x_continuous(limits=c(0,1), breaks = c(.15,.5,.85), labels = c("Any", "Low", "High")) +
+  scale_y_continuous(limits=c(-.035,.01), breaks = seq(-.04, .01, .01),labels = dropLeadingZero) +
+  labs(title = "B: Predicted \nSentiment change", x ="Bot atypicality", y = "Effect of bot encounter")+
+  
+
+  
+  #annotate(geom="text", x=-d, y=max_y, label="bot-exposed sample", color=botexp_col, hjust=0, size=2.5) +
+  #annotate(geom="text", x=-d, y=max_y*.9, label="matched sample", color=match_col, hjust=0, size=2.5) +
+  
+  theme(
+    aspect.ratio=1,
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_line(linewidth = .1),
+    panel.grid.major.y = element_line(linewidth = .1),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_text(size = 11, colour = "black"), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 9, colour = "black") 
+  )
+
+
+plot_amount_diff <- ggplot() +
+  
+  geom_box(aes(xmin = .3, xmax = 1, ymin = -.3, ymax = 1.2), fill = "grey85", alpha = 0.4, radius=r)+
+  #geom_vline(xintercept = .5, linewidth=.1) +
+  geom_hline(yintercept = 0, linewidth=.2) +
+  
+  
+  geom_point(data = a_change_diff, aes(x=.15, y=ols_pred), color=botexp_col2, size=p)+
+  geom_errorbar(data = a_change_diff, aes(x=.15, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col2) +
+  
+  geom_point(data = a_change_diff_lowbotprob, aes(x=.5, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = a_change_diff_lowbotprob, aes(x=.5, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col) +
+
+  geom_point(data = a_change_diff_hibotprob, aes(x=.85, y=ols_pred), color=botexp_col, size=p)+
+  geom_errorbar(data = a_change_diff_hibotprob, aes(x=.85, ymin=ols_low, ymax=ols_up), width=0, position=position_dodge(1), color=botexp_col) +    
+  
+  scale_x_continuous(limits=c(0,1), breaks = c(.15,.5,.85), labels = c("Any", "Low", "High")) +
+  scale_y_continuous(limits=c(-.3,1.2), breaks = seq(-.3, 1.2, .3), labels = dropLeadingZero) +
+  labs(title = "C: Predicted \nAmount change", x ="Bot atypicality", y = "Pred. diff-in-diff") +
+  
+
+  
+  #annotate(geom="text", x=-d, y=max_y, label="bot-exposed sample", color=botexp_col, hjust=0, size=2.5) +
+  #annotate(geom="text", x=-d, y=max_y*.9, label="matched sample", color=match_col, hjust=0, size=2.5) +
+  
+  theme(
+    aspect.ratio=1,
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_line(linewidth = .1),
+    panel.grid.major.y = element_line(linewidth = .1),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_text(size = 11, colour = "black"), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 9, colour = "black") 
+  )
+
+
+
+pred_diff_plots <- cowplot::plot_grid(plot_senti_diff+theme(plot.margin = ggplot2::margin(2,0,2,0)) , plot_amount_diff+theme(axis.title.y = element_blank(), plot.margin = ggplot2::margin(2,0,2,0)), 
+           nrow=1,
+           #align="v",
+           #axis = "b",
+           #rel_widths  = 1,  
+           rel_heights = 1)
+pred_diff_plots
+```
+
+
+
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("pred_diff_plots.pdf", pred_diff_plots, width = 3, height = 2.5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###Finding good examples of unit level stories
+
+```{r}
+bot_days_data$s_resid <- NA
+bot_days_data$a_resid <- NA
+
+bot_days_data[bot_days_data$total_senti_size_before>0 & bot_days_data$after_timegap_2!=0 & bot_days_data$bot_meet_frequency<2,]$s_resid <- data.frame(residuals(s_2way_ctr))$residuals.s_2way_ctr.
+bot_days_data[bot_days_data$total_senti_size_before>0 & bot_days_data$after_timegap_2!=0 & bot_days_data$bot_meet_frequency<2,]$a_resid <- data.frame(residuals(a_2way_ctr))$residuals.a_2way_ctr.
+
+min(abs(bot_days_data$a_resid[!is.na(bot_days_data$a_resid)]))
+
+
+bot_days_data$prod_resid <- -log10(abs(bot_days_data$s_resid)*abs(bot_days_data$a_resid))
+
+
+plot(bot_days_data$prod_resid, bot_days_data$senti_size, ylim=c(0,25), xlim=c(3,5))
+
+bot_days_data$fit <- bot_days_data$senti_size*bot_days_data$prod_resid
+
+bot_days_data[!is.na(bot_days_data$fit) & bot_days_data$fit==max(bot_days_data$fit, na.rm=T),]
+
+
+bot_days_data[bot_days_data$combined_id_vec2=="2481766674 1",]
+
+df <- bot_days_data
+
+df_aggr <- aggregate(x = df, by = list(df$combined_id_vec2), FUN = "mean", na.rm=TRUE)
+
+df_aggr$fit[order(df_aggr$fit, decreasing = T)]
+
+df_aggr$fit_rank <- rank(-df_aggr$fit,na.last = TRUE)
+
+df_aggr$fit_rank_botimpact <- NA
+df_aggr$fit_rank_match <- NA
+
+df_aggr$fit_rank_botimpact[df_aggr$bot_interaction==1] <- rank(-df_aggr$fit[df_aggr$bot_interaction==1],na.last = TRUE)
+df_aggr$fit_rank_match[df_aggr$bot_interaction==0] <- rank(-df_aggr$fit[df_aggr$bot_interaction==0],na.last = TRUE)
+
+df_aggr$fit_rank_paired <- NA
+
+for (i in 1:dim(df_aggr)[1]) {
+
+  id <- df_aggr$author_id_[i]
+  bot_interaction <- df_aggr$bot_interaction[i]
+  
+  if(bot_interaction==1){
+    find_pair <- match(id, df_aggr$author_id_[df_aggr$bot_interaction==0])
+    if(!is.na(find_pair)){
+      print(find_pair)
+    }
+  }
+  
+}
+
+plot(df_aggr[df_aggr$fit_rank<=10,]$fit_rank, df_aggr[df_aggr$fit_rank<=10,]$fit)
+
+
+plot(df_aggr[df_aggr$fit_rank<=10,]$fit_rank, df_aggr[df_aggr$fit_rank<=10,]$senti_size)
+
+```
+
+```{r, fig.width = 10, fig.height = 2}
+id <- df_aggr[df_aggr$fit_rank_botimpact==3,]$author_id_[1]
+
+df <- bot_days_data[bot_days_data$author_id_==id,]
+
+ggplot()+
+  geom_point(data=df[df$after_timegap_2!=0,], aes(x=after_timegap_2, y=0, size=senti_size, colour=senti_mean))+
+  
+  geom_vline(xintercept = 0, linewidth=.1) +
+  
+  scale_y_discrete()+
+  scale_color_gradient2(low="red", mid="grey80", high="blue", midpoint = 0) +
+  
+  
+    theme(
+    aspect.ratio=.1,
+    panel.border = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_text(size = 11, colour = "black"), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 9, colour = "black"),
+    legend.position = "none" 
+  )
+  
+```
+
+
+```{r, fig.width = 10, fig.height = 2}
+#12 3
+
+id <- df_aggr[df_aggr$fit_rank_match==15,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_match==18,]$author_id_)]
+
+df_m <- bot_days_data[bot_days_data$author_id_==id,]
+
+
+id <- df_aggr[df_aggr$fit_rank_botimpact==3,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_botimpact==40,]$author_id_)]
+
+df_b <- bot_days_data[bot_days_data$author_id_==id & bot_days_data$bot_interaction==1,]
+
+ggplot()+
+  geom_point(data=df_m[df_m$after_timegap_2!=0,], aes(x=after_timegap_2, y=1, size=senti_size^.5, colour=senti_mean))+
+  
+  geom_point(data=df_b[df_b$after_timegap_2!=0,], aes(x=after_timegap_2, y=2, size=senti_size^.5, colour=senti_mean))+
+  
+  geom_vline(xintercept = 0, linewidth=.1) +
+  
+  scale_x_continuous(name ="Days", breaks=seq(-30,30,5))+
+  scale_y_discrete(limits=c("Matched", "Bot impacted"))+
+  scale_color_gradient2(low="orange", mid="grey80", high="green", midpoint = 0) +
+  scale_size(range = c(0,4))+
+  
+  
+    theme(
+    aspect.ratio=.1,
+    panel.border = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_line(), 
+    axis.title.y = element_blank(), 
+    axis.text.x = element_text(size = 11, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 11, colour = "black", hjust=1),
+    legend.position = "none" 
+  )
+  
+```
+
+
+
+
+
+```{r, fig.width = 8, fig.height = 1.7}
+#12 3
+
+#width of bars
+w=0.25
+#y axis offset
+o=3.8
+
+
+#good ones (for 3): 8, 15, 11, 16, 20
+m=20
+id <- df_aggr[df_aggr$fit_rank_match==m,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_match==m,]$author_id_)]
+df_m <- bot_days_data[bot_days_data$author_id_==id & bot_days_data$bot_interaction==0,]
+df_m$senti_size <- df_m$senti_size/max(df_m$senti_size)
+df_m$senti_size[df_m$senti_size==0] <- NA
+
+#good ones: 3
+b=3
+id <- df_aggr[df_aggr$fit_rank_botimpact==b,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_botimpact==b,]$author_id_)]
+df_b <- bot_days_data[bot_days_data$author_id_==id & bot_days_data$bot_interaction==1,]
+df_b$senti_size <- df_b$senti_size/max(df_b$senti_size)
+df_b$senti_size[df_b$senti_size==0] <- NA
+
+example_stories_long <- ggplot()+
+
+  geom_rect(data=df_m[df_m$after_timegap_2!=0 & !is.na(df_m$senti_size),],  aes(xmin = after_timegap_2-w, ymin = 0-(senti_size^.5), xmax = after_timegap_2+w, ymax = 0+(senti_size^.5), fill = senti_mean), color = "black", size=0.1) +
+  geom_rect(data=df_b[df_b$after_timegap_2!=0 & !is.na(df_b$senti_size),],  aes(xmin = after_timegap_2-w, ymin = o-(senti_size^.5), xmax = after_timegap_2+w, ymax = o+(senti_size^.5), fill = senti_mean), color = "black", size=0.1) +
+  
+  geom_vline(xintercept = 0, linewidth=.1) +
+  geom_hline(yintercept=o/2, color="white", linewidth=5) +
+  
+  scale_x_continuous(name ="Days relative to bot interaction", breaks=seq(-30,30,5), expand =c(0,.5))+
+  scale_y_continuous(breaks = c(0,o), labels=c("Matched", "Bot impacted"), expand =c(.1,0))+
+  #scale_fill_gradient2(low="red", mid="grey60", high="green", midpoint = 0) +
+  scale_fill_gradientn(breaks=seq(-1,1,.5), labels=dropLeadingZero, colours=c("orange4","orange3","orange2","orange","white","green1","green3","green4","darkgreen"), guide = guide_colorbar(nbin = 7,label.position = "top", title.position = "left",title.vjust =0))+
+  
+  labs(fill="Sentiment")+
+  #guides(guide = guide_colorbar(nbin = 100,label.position = "top", title.position = "left",title.vjust =0))+
+  
+  
+    theme(aspect.ratio=.15, plot.margin=ggplot2::margin(-10,0,0,0, "pt"),panel.border = element_blank(),panel.grid.minor.x = element_blank(),panel.grid.major.x = element_blank(),panel.grid.minor.y = element_blank(),axis.ticks.x = element_blank(),plot.title = element_text(size = 11, face = "bold", colour = "black"),     axis.ticks = element_blank(), axis.title.x = element_text(size = 11, colour = "black", hjust=0.5, vjust=-5), axis.title.y = element_blank(), axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), axis.text.y = element_text(size = 11, colour = "black", hjust=1), legend.position = c(1, -.205),legend.title = element_text(size = 9, colour = "black"),legend.text = element_text(size = 7, colour = "black"),legend.justification = c("right", "top"),legend.box.just = "left",legend.direction="horizontal",legend.key.width=unit(4,"mm"),legend.key.height=unit(1.75,"mm"))
+
+example_stories_long
+  
+```
+
+
+
+```{r, fig.width = 5, fig.height = 2.5}
+#12 3
+
+#width of bars
+w=0.2
+#y axis offset
+o=2
+#bars scaling factor
+f=0.4
+
+
+#-------------scale_x_continuous(expand = c(0,0), labels = dropLeadingZero)-----------------------------
+scaleFUN_1 <- function(x) sprintf("%.1f", x)
+
+dropLeadingZero_1 <- function(l){
+  str_replace(scaleFUN_1(l), '0[.]', '.') #[.] avoids using "." as regex wildcard
+}
+#-------------------------------------------------------------------------------------------------------
+
+
+
+#good ones (for 3): 8, 15, 11, 16, 20
+m=20
+id <- df_aggr[df_aggr$fit_rank_match==m,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_match==m,]$author_id_)]
+df_m <- bot_days_data[bot_days_data$author_id_==id & bot_days_data$bot_interaction==0,]
+df_m$senti_size <- df_m$senti_size/max(df_m$senti_size)
+df_m$senti_size[df_m$senti_size==0] <- NA
+
+#good ones: 3
+b=3
+id <- df_aggr[df_aggr$fit_rank_botimpact==b,]$author_id_[!is.na(df_aggr[df_aggr$fit_rank_botimpact==b,]$author_id_)]
+df_b <- bot_days_data[bot_days_data$author_id_==id & bot_days_data$bot_interaction==1,]
+df_b$senti_size <- df_b$senti_size/max(df_b$senti_size)
+df_b$senti_size[df_b$senti_size==0] <- NA
+
+#-------------------------------------------------------------------------------------------------------
+
+example_stories_short <- ggplot()+
+
+  geom_rect(
+            data=df_m[df_m$after_timegap_2!=0 & !is.na(df_m$senti_size),],  
+            aes(
+                xmin = after_timegap_2-w, 
+                ymin = 0-f*(senti_size^.5), 
+                xmax = after_timegap_2+w, 
+                ymax = 0+f*(senti_size^.5), 
+                fill = senti_mean
+                ), 
+            color = "black", size=0
+            ) +
+  
+
+  geom_rect(
+            data=df_b[df_b$after_timegap_2!=0 & !is.na(df_b$senti_size),],  
+            aes(
+              xmin = after_timegap_2-w, 
+              ymin = o-f*(senti_size^.5), 
+              xmax = after_timegap_2+w, 
+              ymax = o+f*(senti_size^.5), 
+              fill = senti_mean
+              ), 
+            color = "black", size=0
+            ) +
+  
+  #geom_vline(xintercept = 0, linewidth=.1) +
+  #geom_hline(yintercept=o/2, color="white", linewidth=5) +
+  geom_segment(aes(x=0, xend=0, y=0-1.6*f, yend=0+1.6*f), linewidth=.3, color="black", linetype = 5)+
+  geom_segment(aes(x=0, xend=0, y=o-1.6*f, yend=o+1.6*f), linewidth=.3, color="black")+
+  geom_segment(aes(x=0.5, xend=3, y=o-1.8*f, yend=o-2.2*f), linewidth=.3, color="black")+
+  annotate(geom="text", x=3.5, y=o-2.2*f, label="Bot\nencounter", lineheight = 0.6, hjust=0,color="black", size=2.5) +
+  
+  scale_x_continuous(name ="Days", breaks=seq(-30,30,10), expand =c(0,.5))+
+  scale_y_continuous(breaks = c(0,o), labels=c("Matched", "Bot impacted"), expand =c(.1,0))+
+  #scale_fill_gradient2(low="red", mid="grey60", high="green", midpoint = 0) +
+  scale_fill_gradientn(breaks=seq(-1,1,.5), limits=c(-1,1), labels=dropLeadingZero_1, colours=c("magenta4","magenta3","magenta2","gray50","seagreen1","seagreen3","seagreen4"), guide = guide_colorbar(nbin = 7,label.position = "top", title.position = "top",title.vjust =0, title.hjust=0.5, ticks.colour = "black"))+
+  
+  labs(fill="Sentiment")+
+  #guides(guide = guide_colorbar(nbin = 100,label.position = "top", title.position = "left",title.vjust =0))+
+  
+  
+    theme(
+    aspect.ratio=.4,
+    plot.margin=ggplot2::margin(-5,5,1,1, "pt"),
+    panel.border = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    #panel.grid.major.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(size = 11, face = "bold", colour = "black"),     
+    axis.ticks = element_blank(), 
+    axis.title.x = element_text(size = 11, colour = "black", hjust=0.5, vjust=-2), 
+    axis.title.y = element_blank(), 
+    axis.text.x = element_text(size = 9, colour = "black", hjust=0.5), 
+    axis.text.y = element_text(size = 11, colour = "black", hjust=1),
+
+    legend.position = c(-.06, -.02),
+    legend.background = element_rect_round(radius = unit(0.1, "snpc"), linetype = 1, size = 0, colour = "white", fill="gray93"),
+    legend.margin=ggplot2::margin(3,3,3,3, "pt"),
+    #legend.position = c(1, 1.5),
+    legend.title = element_text(size = 8, colour = "black"),
+    legend.text = element_text(size = 6, colour = "black"),
+    legend.justification = c("right", "top"),
+    legend.box.just = "left",
+    legend.direction="horizontal",
+    legend.key.width=unit(3.5,"mm"),
+    legend.key.height=unit(1,"mm")
+    #legend.margin = margin(6, 6, 6, 6)
+  )
+
+
+suppressWarnings(print(example_stories_short))
+  
+```
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("example_plots_short.pdf", example_stories_short, width = 3.8, height = 2)
+```
+
+```{r, fig.width = 6.8, fig.height = 2.5}
+example_pred_combined_plots <- cowplot::plot_grid(
+                                      example_stories_short+
+                                        labs(title = "a: Timeline examples")+
+                                        theme(aspect.ratio=.7, plot.title = element_text(hjust = -1, vjust=1), plot.margin = ggplot2::margin(2,10,10,0)) , 
+                                      plot_senti_diff+
+                                        labs(title = "b: Sentiment", x ="Bot atypicality", y = "Pred. difference-in-difference")+
+                                        theme(plot.title = element_text(hjust = 0, vjust=1), plot.margin = ggplot2::margin(2,0,2,5)) , 
+                                      plot_amount_diff+
+                                        labs(title = "c: Amount", x ="Bot atypicality", y = "")+
+                                        theme(plot.title = element_text(hjust = 0, vjust=1), axis.title.y = element_blank(), plot.margin = ggplot2::margin(2,0,2,0)), 
+           nrow=1,
+           #align="v",
+           #axis = "b",
+           rel_widths  = c(.5,.2,.2),  
+           rel_heights = 1)
+example_pred_combined_plots
+```
+
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("example_pred_combined_plots.pdf", example_pred_combined_plots, width = 6.8, height = 2.5)
+```
+
+```{r, fig.width = 5, fig.height = 5}
+bottom_row <- cowplot::plot_grid(
+                                      plot_senti_diff+
+                                        labs(title = "B: Sentiment", x ="Bot atypicality", y = "Pred. diff-in-diff")+
+                                        theme(aspect.ratio=1, plot.title = element_text(hjust = 0, vjust=1), plot.margin = ggplot2::margin(2,0,2,5)) , 
+                                      plot_amount_diff+
+                                        labs(title = "C: Amount", x ="Bot atypicality", y = "")+
+                                        theme(aspect.ratio=1, plot.title = element_text(hjust = 0, vjust=1), axis.title.y = element_blank(), plot.margin = ggplot2::margin(2,0,2,0)),
+                                      nrow=1,
+                                      rel_widths  = 1)
+
+example_pred_combined_square_plot <- cowplot::plot_grid(
+                                      example_stories_short+
+                                        labs(title = "A: Timeline examples")+
+                                        theme(aspect.ratio=.4, plot.title = element_text(hjust = -.27, vjust=1), plot.margin = ggplot2::margin(-15,10,10,10), panel.background=element_rect(fill='transparent')
+                                        , plot.background  = element_rect_round(fill = "white", color = "grey80", size=.5, radius = unit(0.05, "snpc"))
+                                        ) ,
+                                      bottom_row +
+                                        theme(plot.margin = ggplot2::margin(0,0,0,0))
+                                      , 
+           nrow=2,
+           #align="v",
+           axis = "b",
+           rel_widths  = c(1,1),  
+           rel_heights = c(.9,1))+
+                                        theme(plot.margin = ggplot2::margin(5,5,5,5))
+example_pred_combined_square_plot
+```
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("example_pred_combined_square_plot.pdf", example_pred_combined_square_plot, width = 5, height = 5)
+```
+
+
+
+```{r, fig.width = 5, fig.height = 5}
+bottom_row <- cowplot::plot_grid(
+                                      plot_senti_diff+
+                                        labs(title = "B: Predicted \nSentiment change", x ="Bot atypicality", y = "Effect of bot encounter")+
+                                        theme(aspect.ratio=1, plot.title = element_text(hjust = 0, vjust=1), plot.margin = ggplot2::margin(2,-10,2,7)) , 
+                                      plot_amount_diff+
+                                        labs(title = "C: Predicted \nAmount change", x ="Bot atypicality", y = "")+
+                                        theme(aspect.ratio=1, plot.title = element_text(hjust = 0, vjust=1), axis.title.y = element_blank(), plot.margin = ggplot2::margin(2,0,2,-10)),
+                                      nrow=1,
+                                      rel_widths  = 1,
+                                      rel_heights  = 1,
+                                      align="v",
+                                      axis = "b")
+
+example_pred_combined_square_plot <- cowplot::plot_grid(
+                                      example_stories_short+
+                                        labs(title = "A: Timeline examples")+
+                                        theme(aspect.ratio=.4, plot.title = element_text(hjust = -.29, vjust=-1), plot.margin = ggplot2::margin(-19,7,10,7), panel.background=element_rect(fill='transparent')
+                                        , plot.background  = element_rect_round(fill = "white", color = "grey80", size=.5, radius = unit(0.05, "snpc"))
+                                        ) ,
+                                      bottom_row +
+                                        theme(plot.margin = ggplot2::margin(-10,0,0,-8))
+                                      , 
+           nrow=2,
+           #align="h",
+           #axis = "b",
+           rel_widths  = c(1,1),  
+           rel_heights = c(1,1))+
+                                        theme(plot.margin = ggplot2::margin(-2,5,0,15))
+example_pred_combined_square_plot
+```
+
+### PDF export
+```{r, fig.width = 8.5, fig.height = 6}
+ggsave("example_pred_combined_square_plot.pdf", example_pred_combined_square_plot, width = 5, height = 5)
+```
