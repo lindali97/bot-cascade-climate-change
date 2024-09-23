@@ -1,7 +1,7 @@
 # Social bots spoil activist sentiment without eroding engagement
 
 This repository contains the code and data required to replicate the results presented in the article:  
-**Li, L., Vasarhelyi, O., & Vedres, B. (2024). Social bots sour activist sentiment without eroding engagement. *Scientific Reports*, forthcoming.
+Li, L., Vasarhelyi, O., & Vedres, B. (2024). Social bots sour activist sentiment without eroding engagement. *Scientific Reports*, forthcoming.
 
 It is designed to provide a straightforward replication process for the primary findings discussed in the paper.
 
